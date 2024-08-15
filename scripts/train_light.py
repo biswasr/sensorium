@@ -48,7 +48,11 @@ def parse_arguments():
     parser.add_argument("-f", "--folds", default="all", type=str)
     return parser.parse_args()
 
-
+class LitModel(L.LightningModule):
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+        
 def train_mouse(config: dict, save_dir: Path, train_splits: list[str], val_splits: list[str]):
     config = copy.deepcopy(config)
     argus_params = config["argus_params"]

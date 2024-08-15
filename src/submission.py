@@ -16,13 +16,43 @@ def cut_responses_for_submission(prediction: np.ndarray):
         prediction = prediction[..., :-constants.submission_skip_last]
     return prediction
 
-
 def evaluate_folds_predictions(experiment: str, dataset: str):
     prediction_dir = constants.predictions_dir / experiment / "out-of-fold"
     correlations = dict()
     for mouse in constants.dataset2mice[dataset]:
         mouse_data = get_mouse_data(mouse=mouse, splits=constants.folds_splits)
         mouse_prediction_dir = prediction_dir / mouse
+        predictions = []
+        targets = []
+        for trial_data in mouse_data["trials"]:
+            trial_id = trial_data['trial_id']
+            prediction = np.load(str(mouse_prediction_dir / f"{trial_id}.npy"))
+            target = np.load(trial_data["response_path"])[..., :trial_data["length"]]
+            prediction = cut_responses_for_submission(prediction)
+            target = cut_responses_for_submission(target)
+            predictions.append(prediction)
+            targets.append(target)
+        correlation = float(corr(
+            np.concatenate(predictions, axis=1),
+            np.concatenate(targets, axis=1),
+            axis=1
+        ).mean())
+        print(f"Mouse {mouse} correlation: {correlation}")
+        correlations[mouse] = correlation
+    mean_correlation = float(np.mean(list(correlations.values())))
+    print("Mean correlation:", mean_correlation)
+
+    evaluate_result = {"correlations": correlations, "mean_correlation": mean_correlation}
+    with open(prediction_dir / f"evaluate_{dataset}.json", "w") as outfile:
+        json.dump(evaluate_result, outfile, indent=4)
+
+def evaluate_folds_predictions_per_neuron(experiment: str, dataset: str):
+    prediction_dir = constants.predictions_dir / experiment / "out-of-fold"
+    correlations = dict()
+    for mouse in constants.dataset2mice[dataset]:
+        mouse_data = get_mouse_data(mouse=mouse, splits=constants.folds_splits)
+        mouse_prediction_dir = prediction_dir / mouse
+        neuron_ids = mouse_data["neuron_ids"].tolist()
         predictions = []
         targets = []
         for trial_data in mouse_data["trials"]:
